@@ -8,54 +8,77 @@ const plays = {
 };
 
 const score = { 
-	'player': 0, 
-	'computer': 0,
+	'computer1': 0, 
+	'computer2': 0,
 	'tie': 0
 };
 
-const x = [];
-const y = [];
-
 let i = 0,
-		tmpMove = [],
 		middle,
 		lastWinner,
-		lastMove,
 		scoreResults;
 
-const nn = new MLP( 3, 3, 3, 0.1, 300 );
-
-const play = function(player){
-	const move = Array(3).fill(0);
-	move[player] = 1;
-	tmpMove.push( move );
-	if( tmpMove.length == 2 ){
-		x.push( tmpMove.shift() );
-		y.push( tmpMove[0] );
-	}
-	let computer;
-	if( y.length < 3 ){
-		computer = Math.floor( Math.random() * 3 );
-	}else{
-		if( lastWinner !== 'computer' ){ 
-			nn.shuffle( x, y );
-			nn.fit( x, y );
-		}
-		let prediction = nn.predict( lastMove ).data;
-		computer = (prediction.indexOf(Math.max(...prediction)) + 1) % 3;
-	}
-	const win = plays[player+computer];
-	lastWinner = player === computer || win === undefined ? 'tie' : win === player ? 'player' : 'computer';
-	score[lastWinner]++;
-	updateScore(player, computer, lastWinner);
-	lastMove = move;
+const computer1 = {
+	name: 'Computer 1',
+	nn: new MLP( 3, 3, 3, 0.1, 300 ),
+	tmpMove: [],
+	x: [],
+	y: []
 }
 
-const updateScore = function(p, c, w){
+const computer2 = {
+	name: 'Computer 2',
+	nn: new MLP( 3, 3, 3, 0.1, 300 ),
+	tmpMove: [],
+	x: [],
+	y: []
+}
+
+const play = function(me){
+	let move;
+	if( me.y.length < 3 ){
+		move = Math.floor( Math.random() * 3 );
+	}else{
+		if( lastWinner !== me.name ){ 
+			me.nn.shuffle( me.x, me.y );
+			me.nn.fit( me.x, me.y );
+		}
+		let prediction = me.nn.predict( me.opponentLastMove ).data;
+		move = (prediction.indexOf(Math.max(...prediction)) + 1) % 3;
+	}
+	return move
+}
+
+const learn = function(me, opponentMove){
+	const move = Array(3).fill(0);
+	move[opponentMove] = 1;
+	me.tmpMove.push( move );
+	if( me.tmpMove.length == 2 ){
+		me.x.push( me.tmpMove.shift() );
+		me.y.push( me.tmpMove[0] );
+	}
+	me.opponentLastMove = move;
+}
+
+let loopBot = 1;
+
+const loop = function() {
+	const playerOneMove = play(computer1);
+	const playerTwoMove = play(computer2);
+	console.log(playerTwoMove);
+	const win = plays[playerOneMove+playerTwoMove];
+	lastWinner = playerOneMove === playerTwoMove || win === undefined ? 'tie' : win === playerOneMove ? 'computer1' : 'computer2';
+	score[lastWinner]++;
+	updateScore(playerOneMove, playerTwoMove, lastWinner);
+	learn(computer1, playerTwoMove);
+	learn(computer2, playerOneMove);
+}
+
+const updateScore = function(playerOneMove, playerTwoMove, winner){
 	for(let player of Object.keys(score) ){
 		scoreResults[player].innerHTML = player+"<br>"+score[player];
 	}
-	middle.innerHTML = names[p]+" x "+names[c]+"<br>"+w;
+	middle.innerHTML = `${computer1.name} : ${names[playerOneMove]} vs ${names[playerTwoMove]} : ${computer2.name} <br>${winner}`;
 }
 
 const init = function(){
@@ -70,17 +93,11 @@ const init = function(){
 	}
 	middle = document.createElement('div');
 	middle.className = "row";
-	const bottom = document.createElement('div');
-	bottom.className = "row";
-	for(let i = 0; i < names.length; i++){
-		const btn = document.createElement('button');
-		btn.innerText = names[i];
-		btn.addEventListener('click', ()=>play(i) );
-		bottom.appendChild( btn );
-	}
+
 	document.body.appendChild( top );
 	document.body.appendChild( middle );
-	document.body.appendChild( bottom );
+
+	setInterval(loop, 1000);
 }
 
 init();
